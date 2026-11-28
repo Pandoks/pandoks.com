@@ -1,126 +1,185 @@
-import { describe, expect, it } from 'vitest';
-import worker, { type Env } from './index.ts';
+import { createHash } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createTestHarness, type TestHarness } from 'wrangler';
 
 const TEST_TOKEN = 'test-bearer-token-value';
-const KV_PAGE_SIZE = 50;
+const SAMPLE_AUDIO = new Uint8Array([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4d, 0x34]);
 
-interface StoredValue {
-  value: string;
-  metadata?: unknown;
-}
+const AI_STUB_SOURCE = `
+import { WorkerEntrypoint } from 'cloudflare:workers';
 
-function createMemoryKv(): KVNamespace {
-  const entries = new Map<string, StoredValue>();
+const EMPTY_OUTPUT = {
+  results: { channels: [{ alternatives: [{ transcript: '', words: [] }] }] }
+};
 
-  const kv = {
-    get(key: string, type?: string) {
-      const entry = entries.get(key);
-      if (!entry) return Promise.resolve(null);
-      return Promise.resolve(type === 'json' ? (JSON.parse(entry.value) as unknown) : entry.value);
-    },
-    put(key: string, value: string, options?: { metadata?: unknown }) {
-      entries.set(key, { value, metadata: options?.metadata });
-      return Promise.resolve();
-    },
-    list(options?: { prefix?: string; cursor?: string }) {
-      const prefix = options?.prefix ?? '';
-      const offset = options?.cursor ? Number(options.cursor) : 0;
-      const matching = [...entries.entries()]
-        .filter(([name]) => name.startsWith(prefix))
-        .map(([name, entry]) => ({ name, metadata: entry.metadata }));
-      const keys = matching.slice(offset, offset + KV_PAGE_SIZE);
-      const nextOffset = offset + KV_PAGE_SIZE;
-      if (nextOffset < matching.length) {
-        return Promise.resolve({
-          list_complete: false as const,
-          keys,
-          cursor: String(nextOffset),
-          cacheStatus: null
-        });
-      }
-      return Promise.resolve({ list_complete: true as const, keys, cacheStatus: null });
+let nextOutput = EMPTY_OUTPUT;
+let nextError = null;
+const calls = [];
+
+export default class AiStub extends WorkerEntrypoint {
+  async run(model, input) {
+    const reader = input.audio.body.getReader();
+    const chunks = [];
+    let byteLength = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      byteLength += value.byteLength;
     }
-  };
 
-  return kv as unknown as KVNamespace;
+    const bytes = new Uint8Array(byteLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const sha256 = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+
+    calls.push({
+      model,
+      contentType: input.audio.contentType,
+      byteLength,
+      sha256,
+      smartFormat: input.smart_format,
+      hasKeyterm: 'keyterm' in input,
+      keyterm: input.keyterm
+    });
+
+    if (nextError !== null) {
+      throw new Error(nextError);
+    }
+    return nextOutput;
+  }
+
+  configure(options) {
+    nextOutput = options.output ?? EMPTY_OUTPUT;
+    nextError = options.error ?? null;
+  }
+
+  getCalls() {
+    return calls;
+  }
+
+  reset() {
+    calls.length = 0;
+    nextOutput = EMPTY_OUTPUT;
+    nextError = null;
+  }
 }
+`;
 
 interface RecordedAiCall {
   model: string;
-  input: Ai_Cf_Deepgram_Nova_3_Input;
+  contentType: string;
+  byteLength: number;
+  sha256: string;
+  smartFormat: boolean;
+  hasKeyterm: boolean;
+  keyterm?: string;
 }
 
-function createFakeAi(
-  responder: (
-    model: string,
-    input: Ai_Cf_Deepgram_Nova_3_Input
-  ) => Ai_Cf_Deepgram_Nova_3_Output | Promise<Ai_Cf_Deepgram_Nova_3_Output>
-) {
-  const calls: RecordedAiCall[] = [];
-  const ai = {
-    async run(model: string, input: Ai_Cf_Deepgram_Nova_3_Input) {
-      calls.push({ model, input });
-      return responder(model, input);
-    }
-  };
-  return { ai: ai as unknown as Ai, calls };
+interface AiStubRpc {
+  configure(options: {
+    output?: Ai_Cf_Deepgram_Nova_3_Output;
+    error?: string | null;
+  }): Promise<void>;
+  getCalls(): Promise<RecordedAiCall[]>;
+  reset(): Promise<void>;
 }
 
-function createEnv(
-  responder: (
-    model: string,
-    input: Ai_Cf_Deepgram_Nova_3_Input
-  ) => Ai_Cf_Deepgram_Nova_3_Output | Promise<Ai_Cf_Deepgram_Nova_3_Output> = () => ({
-    results: {
-      channels: [{ alternatives: [{ transcript: '', words: [] }] }]
-    }
-  })
-) {
-  const { ai, calls } = createFakeAi(responder);
-  const env: Env = { AI: ai, CORRECTIONS: createMemoryKv(), AUTH_TOKEN: TEST_TOKEN };
-  return { env, calls };
-}
+let tempDirectory: string;
+let server: TestHarness;
+let baseUrl: URL;
+let aiStub: AiStubRpc;
+let correctionsStore: KVNamespace;
 
-function send(request: Request, env: Env): Promise<Response> {
-  return worker.fetch(request, env);
-}
+beforeAll(async () => {
+  tempDirectory = await mkdtemp(join(tmpdir(), 'transcribe-test-'));
+  const stubPath = join(tempDirectory, 'ai-stub.mjs');
+  await writeFile(stubPath, AI_STUB_SOURCE);
 
-function addCorrection(env: Env, heard: string, correct: string): Promise<Response> {
-  return send(
-    new Request('https://transcribe.example/corrections', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${TEST_TOKEN}`,
-        'content-type': 'application/json'
+  server = createTestHarness({
+    root: resolve(import.meta.dirname, '..'),
+    workers: [
+      {
+        config: {
+          name: 'transcribe',
+          main: 'src/index.ts',
+          compatibility_date: '2026-11-04',
+          kv_namespaces: [{ binding: 'CORRECTIONS', id: 'corrections' }],
+          services: [{ binding: 'AI', service: 'ai-stub' }],
+          vars: { AUTH_TOKEN: TEST_TOKEN }
+        }
       },
-      body: JSON.stringify({ heard, correct })
-    }),
-    env
-  );
+      {
+        config: {
+          name: 'ai-stub',
+          main: stubPath,
+          compatibility_date: '2026-11-04'
+        }
+      }
+    ]
+  });
+
+  ({ url: baseUrl } = await server.listen());
+  aiStub = (await server.getWorker('ai-stub').getExport()) as unknown as AiStubRpc;
+  const env = await server.getWorker<{ CORRECTIONS: KVNamespace }>('transcribe').getEnv();
+  correctionsStore = env.CORRECTIONS;
+}, 30_000);
+
+beforeEach(async () => {
+  await aiStub.reset();
+  const { keys } = await correctionsStore.list();
+  await Promise.all(keys.map((key) => correctionsStore.delete(key.name)));
+});
+
+afterAll(async () => {
+  await server?.close();
+  if (tempDirectory) {
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+function postCorrections(pairs: Record<string, unknown>, token: string | null = TEST_TOKEN) {
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (token !== null) headers['authorization'] = `Bearer ${token}`;
+  return fetch(new URL('/corrections', baseUrl), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(pairs)
+  });
 }
 
-function transcribeFile(
-  env: Env,
-  file: File,
+function postAudio(
+  body: Uint8Array | null,
+  contentType: string,
   token: string | null = TEST_TOKEN
-): Promise<Response> {
-  const formData = new FormData();
-  formData.append('file', file);
-  const headers = token === null ? undefined : { authorization: `Bearer ${token}` };
-  return send(
-    new Request('https://transcribe.example/transcribe', {
-      method: 'POST',
-      headers,
-      body: formData
-    }),
-    env
-  );
+) {
+  const headers: Record<string, string> = {};
+  if (contentType) headers['content-type'] = contentType;
+  if (token !== null) headers['authorization'] = `Bearer ${token}`;
+  return fetch(new URL('/transcribe', baseUrl), {
+    method: 'POST',
+    headers,
+    ...(body !== null ? { body } : {})
+  });
+}
+
+function sha256Hex(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
 }
 
 describe('routing and auth', () => {
   it('returns 200 on GET /health without auth', async () => {
-    const { env } = createEnv();
-    const response = await send(new Request('https://transcribe.example/health'), env);
+    const response = await fetch(new URL('/health', baseUrl));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
   });
@@ -131,231 +190,263 @@ describe('routing and auth', () => {
     ['GET', '/corrections'],
     ['POST', '/health']
   ])('returns 404 on %s %s', async (method, path) => {
-    const { env } = createEnv();
-    const response = await send(new Request(`https://transcribe.example${path}`, { method }), env);
+    const response = await fetch(new URL(path, baseUrl), { method });
     expect(response.status).toBe(404);
   });
 
   it.each(['/transcribe', '/corrections'])(
-    'returns 401 on %s with missing or wrong token',
+    'returns 401 on POST %s for missing, non-Bearer, wrong, and same-length wrong tokens',
     async (path) => {
-      const { env } = createEnv();
+      const body = path === '/corrections' ? JSON.stringify({ gosti: 'Ghostty' }) : SAMPLE_AUDIO;
+      const contentType = path === '/corrections' ? 'application/json' : 'audio/mp4';
 
-      for (const headers of [
+      for (const authorization of [
         undefined,
-        { authorization: 'Basic abc' },
-        { authorization: 'Bearer wrong' },
-        { authorization: `Bearer ${'x'.repeat(TEST_TOKEN.length)}` }
+        'Basic abc',
+        'Bearer wrong',
+        `Bearer ${'x'.repeat(TEST_TOKEN.length)}`
       ]) {
-        const response = await send(
-          new Request(`https://transcribe.example${path}`, { method: 'POST', headers }),
-          env
-        );
+        const headers: Record<string, string> = { 'content-type': contentType };
+        if (authorization !== undefined) headers['authorization'] = authorization;
+
+        const response = await fetch(new URL(path, baseUrl), {
+          method: 'POST',
+          headers,
+          body
+        });
         expect(response.status).toBe(401);
       }
     }
   );
-
-  it('returns 400 when /transcribe is missing a file or not multipart', async () => {
-    const { env } = createEnv();
-
-    const notMultipart = await send(
-      new Request('https://transcribe.example/transcribe', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${TEST_TOKEN}` },
-        body: 'plain text'
-      }),
-      env
-    );
-    expect(notMultipart.status).toBe(400);
-
-    const formData = new FormData();
-    formData.append('other', 'value');
-    const missingField = await send(
-      new Request('https://transcribe.example/transcribe', {
-        method: 'POST',
-        headers: { authorization: `Bearer ${TEST_TOKEN}` },
-        body: formData
-      }),
-      env
-    );
-    expect(missingField.status).toBe(400);
-  });
-
-  it('returns 400 when /corrections body is invalid', async () => {
-    const { env } = createEnv();
-
-    for (const body of ['not json', '{}', JSON.stringify({ heard: ' ', correct: 'Ghostty' })]) {
-      const response = await send(
-        new Request('https://transcribe.example/corrections', {
-          method: 'POST',
-          headers: {
-            authorization: `Bearer ${TEST_TOKEN}`,
-            'content-type': 'application/json'
-          },
-          body
-        }),
-        env
-      );
-      expect(response.status).toBe(400);
-    }
-  });
-
-  it('maps undecodable audio errors (code 8007) to 415', async () => {
-    const { env } = createEnv(() => {
-      throw new Error('AiError: 8007: corrupt or unsupported data');
-    });
-
-    const response = await transcribeFile(
-      env,
-      new File(['apac-bytes'], 'spatial.qta', { type: 'audio/quicktime' })
-    );
-    expect(response.status).toBe(415);
-  });
 });
 
-describe('transcription and replacements', () => {
-  it('returns raw untouched, applies case-insensitive whole-word/phrase replacements, and computes duration', async () => {
-    const { env, calls } = createEnv(() => ({
-      results: {
-        channels: [
-          {
-            alternatives: [
-              {
-                transcript:
-                  'Pandocs opened Gosti and configured hammer spoon, ignoring agostic, gosti2, and sledgehammer spoon.',
-                words: [
-                  { word: 'Pandocs', start: 0.1, end: 0.5 },
-                  { word: 'spoon', start: 4.1, end: 4.72 }
-                ]
-              }
-            ]
-          }
-        ]
+describe('transcription', () => {
+  it('forwards exact audio bytes and content type, returns raw and duration, and rejects empty body', async () => {
+    await aiStub.configure({
+      output: {
+        results: {
+          channels: [
+            {
+              alternatives: [
+                {
+                  transcript: 'Hello world',
+                  words: [
+                    { word: 'Hello', start: 0.1, end: 0.5 },
+                    { word: 'world', start: 0.6, end: 4.72 }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
       }
-    }));
+    });
 
-    expect((await addCorrection(env, 'pandocs', 'Pandoks')).status).toBe(200);
-    expect((await addCorrection(env, 'gosti', 'Ghostty')).status).toBe(200);
-    expect((await addCorrection(env, 'hammer spoon', 'Hammerspoon')).status).toBe(200);
+    const missingBody = await postAudio(null, 'audio/mp4');
+    expect(missingBody.status).toBe(400);
 
-    const response = await transcribeFile(
-      env,
-      new File(['aac-audio'], 'memo.m4a', { type: 'application/octet-stream' })
-    );
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      raw: 'Pandocs opened Gosti and configured hammer spoon, ignoring agostic, gosti2, and sledgehammer spoon.',
-      text: 'Pandoks opened Ghostty and configured Hammerspoon, ignoring agostic, gosti2, and sledgehammer spoon.',
+    const emptyBody = await postAudio(new Uint8Array(0), 'audio/mp4');
+    expect(emptyBody.status).toBe(400);
+    expect(await aiStub.getCalls()).toHaveLength(0);
+
+    const m4aResponse = await postAudio(SAMPLE_AUDIO, 'audio/mp4');
+    expect(m4aResponse.status).toBe(200);
+    expect(await m4aResponse.json()).toEqual({
+      raw: 'Hello world',
+      text: 'Hello world',
       duration: 4.72
     });
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0].model).toBe('@cf/deepgram/nova-3');
-    expect(calls[0].input.audio.contentType).toBe('audio/mp4');
-    expect(calls[0].input.audio.body).toBeInstanceOf(ReadableStream);
-    expect(calls[0].input.smart_format).toBe(true);
+    const quicktimeBytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0x01, 0x02]);
+    const qtaResponse = await postAudio(quicktimeBytes, 'audio/quicktime');
+    expect(qtaResponse.status).toBe(200);
+
+    const calls = await aiStub.getCalls();
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      model: '@cf/deepgram/nova-3',
+      contentType: 'audio/mp4',
+      byteLength: SAMPLE_AUDIO.byteLength,
+      sha256: sha256Hex(SAMPLE_AUDIO),
+      smartFormat: true
+    });
+    expect(calls[1]).toMatchObject({
+      model: '@cf/deepgram/nova-3',
+      contentType: 'audio/quicktime',
+      byteLength: quicktimeBytes.byteLength,
+      sha256: sha256Hex(quicktimeBytes),
+      smartFormat: true
+    });
   });
 
-  it('prefers longer phrases, avoids cascading replacements, and handles regex/dollar characters literally', async () => {
-    const { env } = createEnv(() => ({
-      results: {
-        channels: [
-          {
-            alternatives: [
-              {
-                transcript: 'Try foo bar, foo, c++, and path var in c++20.',
-                words: []
-              }
-            ]
-          }
-        ]
+  it('maps corrupt or unsupported data errors to 415 and does not map other model errors to 415', async () => {
+    await aiStub.configure({ error: 'AiError: 8007: corrupt or unsupported data' });
+    const unsupportedResponse = await postAudio(SAMPLE_AUDIO, 'audio/quicktime');
+    expect(unsupportedResponse.status).toBe(415);
+
+    await aiStub.configure({ error: 'AiError: 8007: keyterm limit exceeded' });
+    const otherModelError = await postAudio(SAMPLE_AUDIO, 'audio/mp4');
+    expect(otherModelError.status).not.toBe(415);
+    expect(otherModelError.status).toBe(500);
+  });
+});
+
+describe('corrections and replacements', () => {
+  it('stores multiple pairs in one call, applies whole-word Unicode replacements, and updates existing pairs', async () => {
+    const firstStore = await postCorrections({
+      ' Pandocs ': ' Pandoks ',
+      gosti: 'Ghostty',
+      'hammer   spoon': 'Hammerspoon',
+      café: 'Cafe'
+    });
+    expect(firstStore.status).toBe(200);
+    expect(await firstStore.json()).toEqual({
+      pandocs: 'Pandoks',
+      gosti: 'Ghostty',
+      'hammer spoon': 'Hammerspoon',
+      café: 'Cafe'
+    });
+
+    await aiStub.configure({
+      output: {
+        results: {
+          channels: [
+            {
+              alternatives: [
+                {
+                  transcript:
+                    'Pandocs met at café with Gosti and hammer   spoon, ignoring agostic, gosti2, sledgehammer spoon, caféine, and décafé.',
+                  words: [{ word: 'décafé', start: 0.1, end: 1.25 }]
+                }
+              ]
+            }
+          ]
+        }
       }
-    }));
+    });
 
-    await addCorrection(env, 'foo', 'bar');
-    await addCorrection(env, 'foo bar', 'FooBar');
-    await addCorrection(env, 'bar', 'WRONG');
-    await addCorrection(env, 'c++', 'C++');
-    await addCorrection(env, 'path var', '$PATH');
+    const firstTranscribe = await postAudio(SAMPLE_AUDIO, 'audio/mp4');
+    expect(firstTranscribe.status).toBe(200);
+    expect(await firstTranscribe.json()).toEqual({
+      raw: 'Pandocs met at café with Gosti and hammer   spoon, ignoring agostic, gosti2, sledgehammer spoon, caféine, and décafé.',
+      text: 'Pandoks met at Cafe with Ghostty and Hammerspoon, ignoring agostic, gosti2, sledgehammer spoon, caféine, and décafé.',
+      duration: 1.25
+    });
 
-    const response = await transcribeFile(
-      env,
-      new File(['audio'], 'memo.qta', { type: 'application/octet-stream' })
-    );
+    const updateStore = await postCorrections({ gosti: 'Ghostty App' });
+    expect(updateStore.status).toBe(200);
+    expect(await updateStore.json()).toEqual({ gosti: 'Ghostty App' });
+
+    const secondTranscribe = await postAudio(SAMPLE_AUDIO, 'audio/mp4');
+    expect(secondTranscribe.status).toBe(200);
+    expect(await secondTranscribe.json()).toEqual({
+      raw: 'Pandocs met at café with Gosti and hammer   spoon, ignoring agostic, gosti2, sledgehammer spoon, caféine, and décafé.',
+      text: 'Pandoks met at Cafe with Ghostty App and Hammerspoon, ignoring agostic, gosti2, sledgehammer spoon, caféine, and décafé.',
+      duration: 1.25
+    });
+  });
+
+  it('prefers longest phrase, avoids cascading, and treats $ and regex characters literally', async () => {
+    const storeResponse = await postCorrections({
+      foo: 'bar',
+      'foo bar': 'FooBar',
+      bar: 'WRONG',
+      'c++': 'C++',
+      'path var': '$PATH',
+      'dollar seq': '$& $1 $$'
+    });
+    expect(storeResponse.status).toBe(200);
+
+    await aiStub.configure({
+      output: {
+        results: {
+          channels: [
+            {
+              alternatives: [
+                {
+                  transcript: 'Try foo bar, foo, c++, path var, and dollar seq in c++20.',
+                  words: []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    });
+
+    const response = await postAudio(SAMPLE_AUDIO, 'audio/quicktime');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      raw: 'Try foo bar, foo, c++, and path var in c++20.',
-      text: 'Try FooBar, bar, C++, and $PATH in c++20.',
+      raw: 'Try foo bar, foo, c++, path var, and dollar seq in c++20.',
+      text: 'Try FooBar, bar, C++, $PATH, and $& $1 $$ in c++20.',
       duration: 0
     });
   });
 
-  it('increments count for repeated pairs and resets when the correction target changes', async () => {
-    const { env } = createEnv();
-
-    expect(await (await addCorrection(env, 'gosti', 'Ghosty')).json()).toEqual({
-      heard: 'gosti',
-      correct: 'Ghosty',
-      count: 1
-    });
-    expect(await (await addCorrection(env, 'Gosti', 'Ghosty')).json()).toEqual({
-      heard: 'gosti',
-      correct: 'Ghosty',
-      count: 2
-    });
-    expect(await (await addCorrection(env, 'gosti', 'Ghostty')).json()).toEqual({
-      heard: 'gosti',
-      correct: 'Ghostty',
-      count: 1
-    });
+  it('returns 400 for invalid /corrections payloads', async () => {
+    for (const body of [
+      'not json',
+      'null',
+      '[]',
+      '"text"',
+      '123',
+      '{}',
+      JSON.stringify({ '': 'Ghostty' }),
+      JSON.stringify({ '   ': 'Ghostty' }),
+      JSON.stringify({ gosti: '' }),
+      JSON.stringify({ gosti: '   ' }),
+      JSON.stringify({ gosti: 42 }),
+      JSON.stringify({ gosti: null }),
+      JSON.stringify({ valid: 'Good', bad: '' })
+    ]) {
+      const response = await fetch(new URL('/corrections', baseUrl), {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${TEST_TOKEN}`,
+          'content-type': 'application/json'
+        },
+        body
+      });
+      expect(response.status).toBe(400);
+    }
   });
 });
 
-describe('keyterm ordering and caps', () => {
-  it('omits keyterm when no corrections exist', async () => {
-    const { env, calls } = createEnv();
+describe('key terms', () => {
+  it('omits keyterm when there are no corrections', async () => {
+    const response = await postAudio(SAMPLE_AUDIO, 'audio/mp4');
+    expect(response.status).toBe(200);
 
-    await transcribeFile(env, new File(['audio'], 'memo.qta', { type: '' }));
-
-    expect(calls).toHaveLength(1);
-    expect(calls[0].input.audio.contentType).toBe('audio/quicktime');
-    expect(calls[0].input.keyterm).toBeUndefined();
+    const [call] = await aiStub.getCalls();
+    expect(call.hasKeyterm).toBe(false);
+    expect(call.keyterm).toBeUndefined();
   });
 
-  it('deduplicates correct terms, orders most-used first, paginates KV, and caps at 100 terms', async () => {
-    const { env, calls } = createEnv();
+  it('sends unique values comma-joined and keeps the 50 most recently added terms', async () => {
+    await postCorrections({
+      gosti: 'Ghostty',
+      ghosty: 'Ghostty',
+      'hammer spoon': 'Hammerspoon'
+    });
 
-    for (let index = 1; index <= 105; index += 1) {
-      await addCorrection(env, `heard${index}`, `Term${String(index).padStart(3, '0')}`);
+    await postAudio(SAMPLE_AUDIO, 'audio/mp4');
+    const [dedupedCall] = await aiStub.getCalls();
+    expect(dedupedCall.keyterm).toBe('Ghostty, Hammerspoon');
+
+    const batch: Record<string, string> = {};
+    for (let index = 1; index <= 55; index += 1) {
+      batch[`heard-${index}`] = `Term${String(index).padStart(2, '0')}`;
     }
-    await addCorrection(env, 'heard105', 'Term105');
-    await addCorrection(env, 'heard105', 'Term105');
-    await addCorrection(env, 'alias-for-104', 'Term104');
+    expect((await postCorrections(batch)).status).toBe(200);
 
-    await transcribeFile(env, new File(['audio'], 'memo.m4a', { type: 'audio/mp4' }));
-
-    const keyterms = calls[0].input.keyterm!.split(' ');
-    expect(keyterms).toHaveLength(100);
-    expect(keyterms[0]).toBe('Term105');
-    expect(keyterms[1]).toBe('Term104');
-    expect(new Set(keyterms).size).toBe(100);
-    expect(keyterms).not.toContain('Term103');
-  });
-
-  it('caps total keyterms within the 500-token budget for multi-word phrases', async () => {
-    const { env, calls } = createEnv();
-
-    for (let index = 1; index <= 70; index += 1) {
-      const phrase = `LongDomainPhrase${index} ExtraWordOne ExtraWordTwo ExtraWordThree`;
-      await addCorrection(env, `phrase ${index}`, phrase);
-    }
-
-    await transcribeFile(env, new File(['audio'], 'memo.m4a', { type: 'audio/mp4' }));
-
-    const words = calls[0].input.keyterm!.split(' ');
-    const estimatedTokens = words.reduce((sum, word) => sum + Math.ceil(word.length / 4), 0);
-    expect(estimatedTokens).toBeLessThanOrEqual(500);
-    expect(words.length).toBeLessThan(70 * 4);
+    await postAudio(SAMPLE_AUDIO, 'audio/mp4');
+    const calls = await aiStub.getCalls();
+    const cappedTerms = calls[1].keyterm!.split(', ');
+    expect(cappedTerms).toHaveLength(50);
+    expect(new Set(cappedTerms).size).toBe(50);
+    expect(cappedTerms[0]).toBe('Term06');
+    expect(cappedTerms.at(-1)).toBe('Term55');
+    expect(cappedTerms).not.toContain('Ghostty');
+    expect(cappedTerms).not.toContain('Term05');
   });
 });

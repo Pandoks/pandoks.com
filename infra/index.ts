@@ -4,7 +4,7 @@ import { outputs as secretOutputs } from './secrets.ts';
 import { outputs as dnsOutputs } from './dns.ts';
 import { outputs as awsOutputs } from './aws.ts';
 import { outputs as apiOutputs } from './api.ts';
-import { outputs as transcribeOutputs } from './transcribe.ts';
+import './transcribe.ts';
 import './github.ts';
 import './website.ts';
 import { outputs as tailscaleOutputs } from './tailscale.ts';
@@ -31,7 +31,6 @@ export default {
   ...dnsOutputs,
   ...awsOutputs,
   ...apiOutputs,
-  ...transcribeOutputs,
   ...tailscaleOutputs,
   ...kubernetesOutputs,
   ...coreOutputs

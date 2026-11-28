@@ -5,8 +5,6 @@ import { STAGE_NAME } from '@pandoks.com/infra/stack';
 import { cloudflareAccountId, cloudflareZoneId, domain } from './dns.ts';
 import { secrets } from './secrets.ts';
 
-const WORKER_COMPATIBILITY_DATE = '2026-11-04';
-const transcribeDomain = `transcribe.${domain}`;
 const scriptName = `${STAGE_NAME}-transcribe`;
 
 const correctionsNamespace = new cloudflare.WorkersKvNamespace('TranscribeCorrections', {
@@ -18,11 +16,7 @@ const [bundle] = buildSync({
   entryPoints: [join(import.meta.dirname, '../apps/transcribe/src/index.ts')],
   bundle: true,
   minify: true,
-  platform: 'neutral',
-  target: 'es2024',
   format: 'esm',
-  mainFields: ['module', 'main'],
-  conditions: ['workerd', 'worker', 'browser'],
   write: false
 }).outputFiles;
 
@@ -31,7 +25,7 @@ const worker = new cloudflare.WorkersScript('TranscribeWorker', {
   scriptName,
   mainModule: 'index.js',
   content: bundle.text,
-  compatibilityDate: WORKER_COMPATIBILITY_DATE,
+  compatibilityDate: '2026-11-04',
   bindings: [
     { name: 'AI', type: 'ai' },
     { name: 'CORRECTIONS', type: 'kv_namespace', namespaceId: correctionsNamespace.id },
@@ -42,8 +36,6 @@ const worker = new cloudflare.WorkersScript('TranscribeWorker', {
 new cloudflare.WorkersCustomDomain('TranscribeDomain', {
   accountId: cloudflareAccountId,
   zoneId: cloudflareZoneId,
-  hostname: transcribeDomain,
+  hostname: `transcribe.${domain}`,
   service: worker.scriptName
 });
-
-export const outputs = { TranscribeUrl: `https://${transcribeDomain}` };
